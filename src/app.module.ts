@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { UsersController } from './users/users.controller';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -10,8 +10,9 @@ import { UsersController } from './users/users.controller';
       isGlobal: true, // ✨ Hace que esté disponible en toda la aplicación
       envFilePath: '.env', // 📄 Especifica el archivo de variables
     }),
+    UsersModule, // 📦 Importar el módulo completo de usuarios
   ],
-  controllers: [AppController, UsersController],
+  controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule {}
