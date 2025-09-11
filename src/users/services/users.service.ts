@@ -1,225 +1,267 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, Like } from 'typeorm';
 import { User } from '../interfaces/user.interface';
+import { UserEntity } from '../entities/user.entity';
 import { CreateUserDto, UpdateUserDto, SearchUserDto } from '../dto/user.dto';
 
 /**
- * 🏪 Servicio de usuarios - Lógica de negocio
- * Contiene toda la lógica de manejo de datos y reglas de negocio
+ * 🏪 Servicio de usuarios - Lógica de negocio con Base de Datos
+ * Ahora usa TypeORM Repository pattern para persistencia escalable
+ * Compatible con SQLite, PostgreSQL, MySQL, etc.
  */
 @Injectable()
 export class UsersService {
-  // 🎭 Datos falsos para practicar (mock data)
-  private users: User[] = [
-    {
-      id: 1,
-      name: 'Ana García',
-      email: 'ana@email.com',
-      age: 25,
-      isActive: true,
-    },
-    {
-      id: 2,
-      name: 'Carlos López',
-      email: 'carlos@email.com',
-      age: 30,
-      isActive: true,
-    },
-    {
-      id: 3,
-      name: 'María Rodríguez',
-      email: 'maria@email.com',
-      age: 28,
-      isActive: false,
-    },
-    {
-      id: 4,
-      name: 'Juan Pérez',
-      email: 'juan@email.com',
-      age: 35,
-      isActive: true,
-    },
-  ];
-
-  /**
-   * 📋 Obtener todos los usuarios activos
-   * @returns {User[]} Lista de usuarios activos solamente
-   */
-  findAll(): User[] {
-    console.log('📋 Obteniendo usuarios activos desde el servicio...');
-    // Filtrar solo usuarios activos
-    return this.users.filter((user) => user.isActive === true);
+  constructor(
+    @InjectRepository(UserEntity)
+    private readonly userRepository: Repository<UserEntity>,
+  ) {
+    void this.seedInitialData(); // 🌱 Crear datos iniciales si no existen
   }
 
   /**
-   * 🔍 Buscar usuarios con filtros
+   * 🌱 Crear datos iniciales en la BD (solo si está vacía)
+   * Se ejecuta automáticamente al iniciar la aplicación
+   */
+  private async seedInitialData(): Promise<void> {
+    const count = await this.userRepository.count();
+
+    if (count === 0) {
+      console.log('🌱 Sembrando datos iniciales en la base de datos...');
+
+      const initialUsers = [
+        { name: 'Ana García', email: 'ana@email.com', age: 25, isActive: true },
+        { name: 'Carlos López', email: 'carlos@email.com', age: 30, isActive: true },
+        { name: 'María Rodríguez', email: 'maria@email.com', age: 28, isActive: false },
+        { name: 'Juan Pérez', email: 'juan@email.com', age: 35, isActive: true },
+      ];
+
+      for (const userData of initialUsers) {
+        const user = this.userRepository.create(userData);
+        await this.userRepository.save(user);
+      }
+
+      console.log('✅ Datos iniciales creados exitosamente');
+    }
+  }
+
+  /**
+   * 📋 Obtener todos los usuarios activos desde la BD
+   * @returns {Promise<User[]>} Lista de usuarios activos solamente
+   */
+  async findAll(): Promise<User[]> {
+    console.log('📋 Obteniendo usuarios activos desde la base de datos...');
+
+    const users = await this.userRepository.find({
+      where: { isActive: true },
+      order: { createdAt: 'DESC' }, // Más recientes primero
+    });
+
+    return this.mapEntitiesToInterfaces(users);
+  }
+
+  /**
+   * 🔍 Buscar usuarios con filtros en la BD
    * @param {SearchUserDto} searchUserDto - Filtros de búsqueda
-   * @returns {User[]} Lista de usuarios filtrados
+   * @returns {Promise<User[]>} Lista de usuarios filtrados
    */
-  search(searchUserDto: SearchUserDto): User[] {
-    console.log('🔍 Buscando usuarios con filtros:', searchUserDto);
+  async search(searchUserDto: SearchUserDto): Promise<User[]> {
+    console.log('🔍 Buscando usuarios con filtros en la BD:', searchUserDto);
 
-    let filteredUsers = this.users;
+    const whereConditions: Record<string, any> = {};
 
-    // Filtrar por nombre (si se proporciona)
+    // Filtrar por nombre (búsqueda parcial)
     if (searchUserDto.name) {
-      filteredUsers = filteredUsers.filter((user) => user.name.toLowerCase().includes(searchUserDto.name!.toLowerCase()));
+      whereConditions.name = Like(`%${searchUserDto.name}%`);
     }
 
-    // Filtrar por email (si se proporciona)
+    // Filtrar por email (búsqueda parcial)
     if (searchUserDto.email) {
-      filteredUsers = filteredUsers.filter((user) => user.email.toLowerCase().includes(searchUserDto.email!.toLowerCase()));
+      whereConditions.email = Like(`%${searchUserDto.email}%`);
     }
 
-    // Filtrar por edad (si se proporciona)
+    // Filtrar por edad exacta
     if (searchUserDto.age) {
-      filteredUsers = filteredUsers.filter((user) => user.age === searchUserDto.age);
+      whereConditions.age = searchUserDto.age;
     }
 
-    // Filtrar por estado activo (si se proporciona)
+    // Filtrar por estado activo
     if (searchUserDto.isActive !== undefined) {
-      filteredUsers = filteredUsers.filter((user) => user.isActive === searchUserDto.isActive);
+      whereConditions.isActive = searchUserDto.isActive;
     }
 
-    return filteredUsers;
+    const users = await this.userRepository.find({
+      where: whereConditions,
+      order: { createdAt: 'DESC' },
+    });
+
+    return this.mapEntitiesToInterfaces(users);
   }
 
   /**
-   * 👤 Obtener un usuario por ID
+   * 👤 Obtener un usuario por ID desde la BD
    * @param {number} id - ID del usuario
-   * @returns {User} Usuario encontrado
+   * @returns {Promise<User>} Usuario encontrado
    * @throws {BadRequestException} Si el ID no es válido
    * @throws {NotFoundException} Si el usuario no existe
    */
-  findOne(id: number): User {
-    console.log(`🔍 Buscando usuario con ID: ${id}`);
+  async findOne(id: number): Promise<User> {
+    console.log(`🔍 Buscando usuario con ID: ${id} en la BD`);
 
     // Validar que el ID sea un número válido
     if (isNaN(id)) {
       throw new BadRequestException('ID debe ser un número válido');
     }
 
-    // Buscar el usuario
-    const user = this.users.find((user) => user.id === id);
+    const user = await this.userRepository.findOne({
+      where: { id },
+    });
 
     if (!user) {
       throw new NotFoundException(`Usuario con ID ${id} no encontrado`);
     }
 
-    return user;
+    return this.mapEntityToInterface(user);
   }
 
   /**
-   * ➕ Crear un nuevo usuario
+   * ➕ Crear un nuevo usuario en la BD
    * @param {CreateUserDto} createUserDto - Datos del nuevo usuario
-   * @returns {User} Usuario creado
+   * @returns {Promise<User>} Usuario creado
    * @throws {ConflictException} Si el email ya existe
    */
-  create(createUserDto: CreateUserDto): User {
-    console.log('➕ Creando nuevo usuario:', createUserDto);
+  async create(createUserDto: CreateUserDto): Promise<User> {
+    console.log('➕ Creando nuevo usuario en la BD:', createUserDto);
 
     // Validar que el email no exista
-    const existingUser = this.users.find((user) => user.email === createUserDto.email);
+    const existingUser = await this.userRepository.findOne({
+      where: { email: createUserDto.email },
+    });
+
     if (existingUser) {
       throw new ConflictException(`Ya existe un usuario con el email ${createUserDto.email}`);
     }
 
-    // Generar nuevo ID
-    const newId = Math.max(...this.users.map((user) => user.id)) + 1;
-
-    // Crear el nuevo usuario
-    const newUser: User = {
-      id: newId,
+    // Crear y guardar el nuevo usuario
+    const user = this.userRepository.create({
       name: createUserDto.name.trim(),
       email: createUserDto.email.toLowerCase().trim(),
       age: createUserDto.age,
       isActive: true,
-    };
+    });
 
-    // Agregar a la lista
-    this.users.push(newUser);
+    const savedUser = await this.userRepository.save(user);
 
-    console.log('✅ Usuario creado exitosamente:', newUser);
-    return newUser;
+    console.log('✅ Usuario creado exitosamente en la BD:', savedUser);
+    return this.mapEntityToInterface(savedUser);
   }
 
   /**
-   * ✏️ Actualizar un usuario existente
+   * ✏️ Actualizar un usuario existente en la BD
    * @param {number} id - ID del usuario a actualizar
    * @param {UpdateUserDto} updateUserDto - Datos a actualizar
-   * @returns {User} Usuario actualizado
+   * @returns {Promise<User>} Usuario actualizado
    * @throws {BadRequestException} Si el ID no es válido
    * @throws {NotFoundException} Si el usuario no existe
    * @throws {ConflictException} Si el email ya existe en otro usuario
    */
-  update(id: number, updateUserDto: UpdateUserDto): User {
-    console.log(`✏️ Actualizando usuario ID ${id}:`, updateUserDto);
+  async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
+    console.log(`✏️ Actualizando usuario ID ${id} en la BD:`, updateUserDto);
 
     // Validar ID
     if (isNaN(id)) {
       throw new BadRequestException('ID debe ser un número válido');
     }
 
-    const userIndex = this.users.findIndex((user) => user.id === id);
+    // Buscar el usuario
+    const user = await this.userRepository.findOne({
+      where: { id },
+    });
 
-    if (userIndex === -1) {
+    if (!user) {
       throw new NotFoundException(`Usuario con ID ${id} no encontrado`);
     }
 
     // Validar email único solo si se está actualizando el email
     if (updateUserDto.email) {
-      const existingUser = this.users.find((user) => user.email === updateUserDto.email && user.id !== id);
-      if (existingUser) {
+      const existingUser = await this.userRepository.findOne({
+        where: { email: updateUserDto.email },
+      });
+
+      if (existingUser && existingUser.id !== id) {
         throw new ConflictException(`Ya existe otro usuario con el email ${updateUserDto.email}`);
       }
     }
 
-    // Limpiar datos antes de actualizar
-    const cleanData: Partial<User> = {};
-    if (updateUserDto.name) cleanData.name = updateUserDto.name.trim();
-    if (updateUserDto.email) cleanData.email = updateUserDto.email.toLowerCase().trim();
-    if (updateUserDto.age !== undefined) cleanData.age = updateUserDto.age;
-    if (updateUserDto.isActive !== undefined) cleanData.isActive = updateUserDto.isActive;
+    // Actualizar campos proporcionados
+    if (updateUserDto.name) user.name = updateUserDto.name.trim();
+    if (updateUserDto.email) user.email = updateUserDto.email.toLowerCase().trim();
+    if (updateUserDto.age !== undefined) user.age = updateUserDto.age;
+    if (updateUserDto.isActive !== undefined) user.isActive = updateUserDto.isActive;
 
-    // Actualizar usuario
-    this.users[userIndex] = {
-      ...this.users[userIndex],
-      ...cleanData,
-    };
+    const updatedUser = await this.userRepository.save(user);
 
-    console.log('✅ Usuario actualizado exitosamente:', this.users[userIndex]);
-    return this.users[userIndex];
+    console.log('✅ Usuario actualizado exitosamente en la BD:', updatedUser);
+    return this.mapEntityToInterface(updatedUser);
   }
 
   /**
-   * 🗑️ Eliminar un usuario (eliminación lógica)
+   * 🗑️ Eliminar un usuario (eliminación lógica) en la BD
    * @param {number} id - ID del usuario a eliminar
-   * @returns {User} Usuario eliminado
+   * @returns {Promise<User>} Usuario eliminado
    * @throws {BadRequestException} Si el ID no es válido
    * @throws {NotFoundException} Si el usuario no existe
    * @throws {ConflictException} Si el usuario ya estaba eliminado
    */
-  remove(id: number): User {
-    console.log(`🗑️ Eliminando usuario ID ${id}`);
+  async remove(id: number): Promise<User> {
+    console.log(`🗑️ Eliminando usuario ID ${id} en la BD`);
 
     // Validar ID
     if (isNaN(id)) {
       throw new BadRequestException('ID debe ser un número válido');
     }
 
-    const userIndex = this.users.findIndex((user) => user.id === id);
+    const user = await this.userRepository.findOne({
+      where: { id },
+    });
 
-    if (userIndex === -1) {
+    if (!user) {
       throw new NotFoundException(`Usuario con ID ${id} no encontrado`);
     }
 
-    if (!this.users[userIndex].isActive) {
+    if (!user.isActive) {
       throw new ConflictException(`Usuario con ID ${id} ya estaba eliminado`);
     }
 
     // Eliminación lógica
-    this.users[userIndex].isActive = false;
+    user.isActive = false;
+    const deletedUser = await this.userRepository.save(user);
 
-    console.log('✅ Usuario eliminado exitosamente:', this.users[userIndex]);
-    return this.users[userIndex];
+    console.log('✅ Usuario eliminado exitosamente en la BD:', deletedUser);
+    return this.mapEntityToInterface(deletedUser);
+  }
+
+  /**
+   * 🔄 Convertir UserEntity a User interface
+   * @param {UserEntity} entity - Entity de la BD
+   * @returns {User} Interface para el controlador
+   */
+  private mapEntityToInterface(entity: UserEntity): User {
+    return {
+      id: entity.id,
+      name: entity.name,
+      email: entity.email,
+      age: entity.age,
+      isActive: entity.isActive,
+    };
+  }
+
+  /**
+   * 🔄 Convertir array de UserEntity a array de User interface
+   * @param {UserEntity[]} entities - Array de entities de la BD
+   * @returns {User[]} Array de interfaces para el controlador
+   */
+  private mapEntitiesToInterfaces(entities: UserEntity[]): User[] {
+    return entities.map((entity) => this.mapEntityToInterface(entity));
   }
 }

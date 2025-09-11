@@ -1,31 +1,38 @@
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+
 /**
- * 🏛️ Entity de Usuario
+ * 🏛️ Entity de Usuario - Compatible con TypeORM
  * Representa la estructura de la tabla de usuarios en la base de datos
- * Esta clase define cómo se almacenan los datos en la BD
+ * Esta clase define cómo se almacenan los datos en cualquier BD (SQLite, PostgreSQL, MySQL)
  */
+@Entity('users') // 📋 Nombre de la tabla en la BD
 export class UserEntity {
   /**
    * 🆔 Identificador único del usuario
-   * Clave primaria, auto-incremental
+   * Clave primaria, auto-incremental (funciona en SQLite, PostgreSQL, MySQL)
    */
+  @PrimaryGeneratedColumn()
   id: number;
 
   /**
    * 📛 Nombre completo del usuario
    * Campo obligatorio, máximo 100 caracteres
    */
+  @Column({ type: 'varchar', length: 100 })
   name: string;
 
   /**
    * 📧 Correo electrónico del usuario
    * Campo único y obligatorio, máximo 255 caracteres
    */
+  @Column({ type: 'varchar', length: 255, unique: true })
   email: string;
 
   /**
    * 🎂 Edad del usuario
    * Campo obligatorio, rango válido: 0-150
    */
+  @Column({ type: 'int' })
   age: number;
 
   /**
@@ -33,18 +40,21 @@ export class UserEntity {
    * true = activo, false = inactivo/eliminado
    * Por defecto: true
    */
+  @Column({ type: 'boolean', default: true })
   isActive: boolean;
 
   /**
    * 📅 Fecha de creación del registro
    * Se asigna automáticamente al crear el usuario
    */
+  @CreateDateColumn()
   createdAt: Date;
 
   /**
    * 🔄 Fecha de última actualización
    * Se actualiza automáticamente al modificar el usuario
    */
+  @UpdateDateColumn()
   updatedAt: Date;
 
   /**

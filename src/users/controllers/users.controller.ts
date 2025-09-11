@@ -14,8 +14,8 @@ export class UsersController {
    * Nota: Solo devuelve usuarios con isActive = true
    */
   @Get()
-  getAllUsers(): User[] {
-    return this.usersService.findAll();
+  async getAllUsers(): Promise<User[]> {
+    return await this.usersService.findAll();
   }
 
   /**
@@ -29,8 +29,8 @@ export class UsersController {
    *   - 400: Parámetros de búsqueda inválidos
    */
   @Get('search')
-  searchUsers(@Query() searchUserDto: SearchUserDto): User[] {
-    return this.usersService.search(searchUserDto);
+  async searchUsers(@Query() searchUserDto: SearchUserDto): Promise<User[]> {
+    return await this.usersService.search(searchUserDto);
   }
 
   /**
@@ -44,8 +44,8 @@ export class UsersController {
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  createUser(@Body() createUserDto: CreateUserDto): User {
-    return this.usersService.create(createUserDto);
+  async createUser(@Body() createUserDto: CreateUserDto): Promise<User> {
+    return await this.usersService.create(createUserDto);
   }
 
   /**
@@ -59,9 +59,9 @@ export class UsersController {
    *   - 409: Email ya existe en otro usuario
    */
   @Put(':id')
-  updateUser(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto): User {
+  async updateUser(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto): Promise<User> {
     const userId = parseInt(id);
-    return this.usersService.update(userId, updateUserDto);
+    return await this.usersService.update(userId, updateUserDto);
   }
 
   /**
@@ -74,9 +74,9 @@ export class UsersController {
    *   - 409: Usuario ya estaba eliminado
    */
   @Delete(':id')
-  deleteUser(@Param('id') id: string): { message: string } {
+  async deleteUser(@Param('id') id: string): Promise<{ message: string }> {
     const userId = parseInt(id);
-    const deletedUser = this.usersService.remove(userId);
+    const deletedUser = await this.usersService.remove(userId);
     return {
       message: `✅ Usuario ${deletedUser.name} eliminado exitosamente`,
     };
@@ -92,8 +92,8 @@ export class UsersController {
    *   - 404: Usuario no encontrado
    */
   @Get(':id')
-  getUserById(@Param('id') id: string): User {
+  async getUserById(@Param('id') id: string): Promise<User> {
     const userId = parseInt(id);
-    return this.usersService.findOne(userId);
+    return await this.usersService.findOne(userId);
   }
 }
