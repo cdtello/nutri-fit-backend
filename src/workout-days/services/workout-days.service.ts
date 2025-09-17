@@ -1,139 +1,107 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like } from 'typeorm';
-import { WorkoutDay } from '../interfaces/workout-day.interface';
 import { WorkoutDayEntity } from '../entities/workout-day.entity';
 import { CreateWorkoutDayDto, UpdateWorkoutDayDto, SearchWorkoutDayDto } from '../dto/workout-day.dto';
 import { UserEntity } from '../../users/entities/user.entity';
 
 /**
  * 🏋️ Servicio de días de entrenamiento - Lógica de negocio con Base de Datos
- * Ahora usa TypeORM Repository pattern para persistencia escalable
+ *
+ * Este servicio maneja toda la lógica relacionada con los días de entrenamiento.
+ * Incluye operaciones CRUD y validaciones de negocio específicas.
+ * Usa TypeORM Repository pattern para persistencia escalable.
  * Compatible con SQLite, PostgreSQL, MySQL, etc.
+ *
+ * @class WorkoutDaysService
+ * @description Gestiona entrenamientos semanales de usuarios
  */
 @Injectable()
 export class WorkoutDaysService {
+  /**
+   * Constructor del servicio
+   * @param workoutDayRepository - Repositorio para WorkoutDayEntity
+   * @param userRepository - Repositorio para validar usuarios
+   */
   constructor(
     @InjectRepository(WorkoutDayEntity)
     private readonly workoutDayRepository: Repository<WorkoutDayEntity>,
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
-  ) {
-    void this.seedInitialData(); // 🌱 Crear datos iniciales si no existen
-  }
-
-  /**
-   * 🌱 Crear datos iniciales en la BD (solo si está vacía)
-   * Se ejecuta automáticamente al iniciar la aplicación
-   */
-  private async seedInitialData(): Promise<void> {
-    const count = await this.workoutDayRepository.count();
-
-    if (count === 0) {
-      console.log('🌱 Sembrando datos iniciales de entrenamientos en la base de datos...');
-
-      // Verificar que existan usuarios para asociar los entrenamientos
-      const users = await this.userRepository.find({ where: { isActive: true } });
-
-      if (users.length === 0) {
-        console.log('⚠️ No hay usuarios activos, saltando seed de entrenamientos');
-        return;
-      }
-
-      const initialWorkoutDays = [
-        {
-          name: 'Lunes - Pecho y Tríceps',
-          description: 'Entrenamiento de fuerza enfocado en pecho, hombros y tríceps. Incluye press de banca, flexiones y extensiones.',
-          dayOfWeek: 1,
-          durationMinutes: 90,
-          intensityLevel: 4,
-          workoutType: 'Fuerza',
-          isActive: true,
-          userId: users[0].id,
-        },
-        {
-          name: 'Miércoles - Piernas',
-          description: 'Rutina completa de piernas: sentadillas, peso muerto, extensiones y curl de piernas.',
-          dayOfWeek: 3,
-          durationMinutes: 75,
-          intensityLevel: 5,
-          workoutType: 'Fuerza',
-          isActive: true,
-          userId: users[0].id,
-        },
-        {
-          name: 'Viernes - Cardio Intenso',
-          description: 'Sesión de cardio de alta intensidad con intervalos. Incluye correr, burpees y saltos.',
-          dayOfWeek: 5,
-          durationMinutes: 45,
-          intensityLevel: 4,
-          workoutType: 'Cardio',
-          isActive: true,
-          userId: users[0].id,
-        },
-        {
-          name: 'Martes - Yoga y Flexibilidad',
-          description: 'Sesión de yoga para mejorar flexibilidad y relajación. Enfoque en posturas y respiración.',
-          dayOfWeek: 2,
-          durationMinutes: 60,
-          intensityLevel: 2,
-          workoutType: 'Flexibilidad',
-          isActive: true,
-          userId: users.length > 1 ? users[1].id : users[0].id,
-        },
-      ];
-
-      for (const workoutData of initialWorkoutDays) {
-        const workout = this.workoutDayRepository.create(workoutData);
-        await this.workoutDayRepository.save(workout);
-      }
-
-      console.log('✅ Datos iniciales de entrenamientos creados exitosamente');
-    }
-  }
+  ) {}
 
   /**
    * 📋 Obtener todos los días de entrenamiento activos desde la BD
-   * @returns {Promise<WorkoutDay[]>} Lista de días de entrenamiento activos solamente
+   *
+   * Obtiene todos los entrenamientos activos ordenados por día de la semana.
+   * Solo devuelve entrenamientos con isActive = true.
+   *
+   * @returns {Promise<WorkoutDayEntity[]>} Lista de entrenamientos activos
+   * @example
+   * const entrenamientos = await workoutDaysService.findAll();
+   * entrenamientos.forEach(e => console.log(`${e.name} - ${e.getDayName()}`));
    */
-  async findAll(): Promise<WorkoutDay[]> {
+  async findAll(): Promise<WorkoutDayEntity[]> {
     console.log('📋 Obteniendo días de entrenamiento activos desde la base de datos...');
 
-    const workoutDays = await this.workoutDayRepository.find({
+    return await this.workoutDayRepository.find({
       where: { isActive: true },
-      order: { dayOfWeek: 'ASC', createdAt: 'DESC' }, // Ordenar por día de semana, luego por más recientes
+      order: { dayOfWeek: 'ASC', createdAt: 'DESC' }, // Por día de semana, luego más recientes
     });
-
-    return this.mapEntitiesToInterfaces(workoutDays);
   }
 
   /**
    * 👤 Obtener todos los días de entrenamiento de un usuario específico
-   * @param {number} userId - ID del usuario
-   * @returns {Promise<WorkoutDay[]>} Lista de días de entrenamiento del usuario
+   *
+   * Filtra los entrenamientos por usuario y los devuelve ordenados por día.
+   * Valida que el usuario exista antes de buscar sus entrenamientos.
+   *
+   * @param {number} userId - ID del usuario propietario
+   * @returns {Promise<WorkoutDayEntity[]>} Entrenamientos del usuario ordenados por día
+   * @throws {NotFoundException} Si el usuario no existe o no está activo
+   *
+   * @example
+   * const entrenamientosUsuario = await workoutDaysService.findByUserId(1);
+   * console.log(`Usuario tiene ${entrenamientosUsuario.length} días de entrenamiento`);
    */
-  async findByUserId(userId: number): Promise<WorkoutDay[]> {
+  async findByUserId(userId: number): Promise<WorkoutDayEntity[]> {
     console.log(`👤 Obteniendo días de entrenamiento del usuario ${userId}...`);
 
-    // Validar que el usuario existe
+    // Validar que el usuario existe y está activo
     await this.validateUserExists(userId);
 
-    const workoutDays = await this.workoutDayRepository.find({
+    return await this.workoutDayRepository.find({
       where: { userId, isActive: true },
-      order: { dayOfWeek: 'ASC' },
+      order: { dayOfWeek: 'ASC' }, // Lunes a Domingo
     });
-
-    return this.mapEntitiesToInterfaces(workoutDays);
   }
 
   /**
    * 🔍 Buscar días de entrenamiento con filtros en la BD
-   * @param {SearchWorkoutDayDto} searchWorkoutDayDto - Filtros de búsqueda
-   * @returns {Promise<WorkoutDay[]>} Lista de días de entrenamiento filtrados
+   *
+   * Permite búsquedas avanzadas combinando múltiples criterios.
+   * Los filtros se aplican de forma dinámica según los parámetros proporcionados.
+   *
+   * @param {SearchWorkoutDayDto} searchWorkoutDayDto - Criterios de búsqueda
+   * @returns {Promise<WorkoutDayEntity[]>} Entrenamientos que cumplen los criterios
+   *
+   * @example
+   * // Buscar entrenamientos de cardio
+   * const cardio = await workoutDaysService.search({ workoutType: 'Cardio' });
+   *
+   * // Buscar entrenamientos de un día específico
+   * const lunes = await workoutDaysService.search({ dayOfWeek: 1 });
+   *
+   * // Búsqueda combinada
+   * const intensos = await workoutDaysService.search({
+   *   intensityLevel: 5,
+   *   workoutType: 'Fuerza'
+   * });
    */
-  async search(searchWorkoutDayDto: SearchWorkoutDayDto): Promise<WorkoutDay[]> {
+  async search(searchWorkoutDayDto: SearchWorkoutDayDto): Promise<WorkoutDayEntity[]> {
     console.log('🔍 Buscando días de entrenamiento con filtros en la BD:', searchWorkoutDayDto);
 
+    // Construir condiciones WHERE dinámicamente
     const whereConditions: Record<string, any> = {};
 
     // Filtrar por nombre (búsqueda parcial)
@@ -141,17 +109,17 @@ export class WorkoutDaysService {
       whereConditions.name = Like(`%${searchWorkoutDayDto.name}%`);
     }
 
-    // Filtrar por día de la semana
+    // Filtrar por día de la semana (1=Lunes, 7=Domingo)
     if (searchWorkoutDayDto.dayOfWeek) {
       whereConditions.dayOfWeek = searchWorkoutDayDto.dayOfWeek;
     }
 
-    // Filtrar por duración
+    // Filtrar por duración exacta en minutos
     if (searchWorkoutDayDto.durationMinutes) {
       whereConditions.durationMinutes = searchWorkoutDayDto.durationMinutes;
     }
 
-    // Filtrar por nivel de intensidad
+    // Filtrar por nivel de intensidad (1-5)
     if (searchWorkoutDayDto.intensityLevel) {
       whereConditions.intensityLevel = searchWorkoutDayDto.intensityLevel;
     }
@@ -166,27 +134,34 @@ export class WorkoutDaysService {
       whereConditions.isActive = searchWorkoutDayDto.isActive;
     }
 
-    // Filtrar por usuario
+    // Filtrar por usuario propietario
     if (searchWorkoutDayDto.userId) {
       whereConditions.userId = searchWorkoutDayDto.userId;
     }
 
-    const workoutDays = await this.workoutDayRepository.find({
+    return await this.workoutDayRepository.find({
       where: whereConditions,
       order: { dayOfWeek: 'ASC', createdAt: 'DESC' },
     });
-
-    return this.mapEntitiesToInterfaces(workoutDays);
   }
 
   /**
    * 🏋️ Obtener un día de entrenamiento por ID desde la BD
-   * @param {number} id - ID del día de entrenamiento
-   * @returns {Promise<WorkoutDay>} Día de entrenamiento encontrado
+   *
+   * Busca un entrenamiento específico por su ID único.
+   * Útil para obtener detalles completos de un entrenamiento.
+   *
+   * @param {number} id - ID único del día de entrenamiento
+   * @returns {Promise<WorkoutDayEntity>} El entrenamiento encontrado
    * @throws {BadRequestException} Si el ID no es válido
-   * @throws {NotFoundException} Si el día de entrenamiento no existe
+   * @throws {NotFoundException} Si el entrenamiento no existe
+   *
+   * @example
+   * const entrenamiento = await workoutDaysService.findOne(1);
+   * console.log(entrenamiento.name); // 'Lunes - Pecho y Tríceps'
+   * console.log(entrenamiento.getIntensityDescription()); // 'Intensidad Alta'
    */
-  async findOne(id: number): Promise<WorkoutDay> {
+  async findOne(id: number): Promise<WorkoutDayEntity> {
     console.log(`🔍 Buscando día de entrenamiento con ID: ${id} en la BD`);
 
     // Validar que el ID sea un número válido
@@ -202,28 +177,44 @@ export class WorkoutDaysService {
       throw new NotFoundException(`Día de entrenamiento con ID ${id} no encontrado`);
     }
 
-    return this.mapEntityToInterface(workoutDay);
+    return workoutDay;
   }
 
   /**
    * ➕ Crear un nuevo día de entrenamiento en la BD
-   * @param {CreateWorkoutDayDto} createWorkoutDayDto - Datos del nuevo día de entrenamiento
-   * @returns {Promise<WorkoutDay>} Día de entrenamiento creado
-   * @throws {NotFoundException} Si el usuario no existe
-   * @throws {ConflictException} Si ya existe un entrenamiento para ese usuario en ese día
+   *
+   * Crea un entrenamiento después de validar que:
+   * 1. El usuario exista y esté activo
+   * 2. No haya otro entrenamiento activo para ese día de la semana
+   *
+   * @param {CreateWorkoutDayDto} createWorkoutDayDto - Datos del nuevo entrenamiento
+   * @returns {Promise<WorkoutDayEntity>} El entrenamiento recién creado
+   * @throws {NotFoundException} Si el usuario no existe o no está activo
+   * @throws {ConflictException} Si ya existe un entrenamiento para ese día
+   *
+   * @example
+   * const nuevoEntrenamiento = await workoutDaysService.create({
+   *   name: 'Jueves - Espalda y Bíceps',
+   *   description: 'Rutina de espalda con dominadas',
+   *   dayOfWeek: 4,
+   *   durationMinutes: 80,
+   *   intensityLevel: 4,
+   *   workoutType: 'Fuerza',
+   *   userId: 1
+   * });
    */
-  async create(createWorkoutDayDto: CreateWorkoutDayDto): Promise<WorkoutDay> {
+  async create(createWorkoutDayDto: CreateWorkoutDayDto): Promise<WorkoutDayEntity> {
     console.log('➕ Creando nuevo día de entrenamiento en la BD:', createWorkoutDayDto);
 
-    // Validar que el usuario existe
+    // Validar que el usuario existe y está activo
     await this.validateUserExists(createWorkoutDayDto.userId);
 
-    // Validar que no exista ya un entrenamiento para ese usuario en ese día de la semana
+    // Validar que no exista ya un entrenamiento para ese usuario en ese día
     const existingWorkout = await this.workoutDayRepository.findOne({
       where: {
         userId: createWorkoutDayDto.userId,
         dayOfWeek: createWorkoutDayDto.dayOfWeek,
-        isActive: true
+        isActive: true,
       },
     });
 
@@ -232,42 +223,57 @@ export class WorkoutDaysService {
       throw new ConflictException(`Ya existe un entrenamiento activo para el ${dayName}`);
     }
 
-    // Crear y guardar el nuevo día de entrenamiento
+    // Crear el nuevo entrenamiento con valores por defecto
     const workoutDay = this.workoutDayRepository.create({
       name: createWorkoutDayDto.name.trim(),
       description: createWorkoutDayDto.description?.trim(),
       dayOfWeek: createWorkoutDayDto.dayOfWeek,
       durationMinutes: createWorkoutDayDto.durationMinutes,
-      intensityLevel: createWorkoutDayDto.intensityLevel ?? 3,
-      workoutType: createWorkoutDayDto.workoutType ?? 'Fuerza',
+      intensityLevel: createWorkoutDayDto.intensityLevel ?? 3, // Medio por defecto
+      workoutType: createWorkoutDayDto.workoutType ?? 'Fuerza', // Fuerza por defecto
       userId: createWorkoutDayDto.userId,
       isActive: true,
     });
 
     const savedWorkoutDay = await this.workoutDayRepository.save(workoutDay);
-
     console.log('✅ Día de entrenamiento creado exitosamente en la BD:', savedWorkoutDay);
-    return this.mapEntityToInterface(savedWorkoutDay);
+
+    return savedWorkoutDay;
   }
 
   /**
    * ✏️ Actualizar un día de entrenamiento existente en la BD
-   * @param {number} id - ID del día de entrenamiento a actualizar
-   * @param {UpdateWorkoutDayDto} updateWorkoutDayDto - Datos a actualizar
-   * @returns {Promise<WorkoutDay>} Día de entrenamiento actualizado
+   *
+   * Actualiza solo los campos proporcionados (actualización parcial).
+   * Si se cambia el día de la semana, valida que no haya conflictos.
+   *
+   * @param {number} id - ID del entrenamiento a actualizar
+   * @param {UpdateWorkoutDayDto} updateWorkoutDayDto - Campos a actualizar
+   * @returns {Promise<WorkoutDayEntity>} El entrenamiento actualizado
    * @throws {BadRequestException} Si el ID no es válido
-   * @throws {NotFoundException} Si el día de entrenamiento no existe
-   * @throws {ConflictException} Si ya existe otro entrenamiento en el mismo día
+   * @throws {NotFoundException} Si el entrenamiento no existe
+   * @throws {ConflictException} Si el nuevo día ya tiene otro entrenamiento
+   *
+   * @example
+   * // Cambiar solo la duración
+   * const entrenamiento = await workoutDaysService.update(1, { durationMinutes: 100 });
+   *
+   * // Cambiar múltiples campos
+   * const entrenamiento = await workoutDaysService.update(1, {
+   *   name: 'Lunes - Entrenamiento Actualizado',
+   *   intensityLevel: 5,
+   *   durationMinutes: 120
+   * });
    */
-  async update(id: number, updateWorkoutDayDto: UpdateWorkoutDayDto): Promise<WorkoutDay> {
+  async update(id: number, updateWorkoutDayDto: UpdateWorkoutDayDto): Promise<WorkoutDayEntity> {
     console.log(`✏️ Actualizando día de entrenamiento ID ${id} en la BD:`, updateWorkoutDayDto);
 
-    // Validar ID
+    // Validar que el ID sea válido
     if (isNaN(id)) {
       throw new BadRequestException('ID debe ser un número válido');
     }
 
-    // Buscar el día de entrenamiento
+    // Buscar el entrenamiento a actualizar
     const workoutDay = await this.workoutDayRepository.findOne({
       where: { id },
     });
@@ -276,13 +282,13 @@ export class WorkoutDaysService {
       throw new NotFoundException(`Día de entrenamiento con ID ${id} no encontrado`);
     }
 
-    // Validar conflicto de día de semana solo si se está actualizando el día
+    // Validar conflicto de día de semana solo si se está cambiando
     if (updateWorkoutDayDto.dayOfWeek && updateWorkoutDayDto.dayOfWeek !== workoutDay.dayOfWeek) {
       const existingWorkout = await this.workoutDayRepository.findOne({
         where: {
           userId: workoutDay.userId,
           dayOfWeek: updateWorkoutDayDto.dayOfWeek,
-          isActive: true
+          isActive: true,
         },
       });
 
@@ -292,7 +298,7 @@ export class WorkoutDaysService {
       }
     }
 
-    // Actualizar campos proporcionados
+    // Actualizar solo los campos proporcionados
     if (updateWorkoutDayDto.name) workoutDay.name = updateWorkoutDayDto.name.trim();
     if (updateWorkoutDayDto.description !== undefined) workoutDay.description = updateWorkoutDayDto.description?.trim();
     if (updateWorkoutDayDto.dayOfWeek !== undefined) workoutDay.dayOfWeek = updateWorkoutDayDto.dayOfWeek;
@@ -302,23 +308,35 @@ export class WorkoutDaysService {
     if (updateWorkoutDayDto.isActive !== undefined) workoutDay.isActive = updateWorkoutDayDto.isActive;
 
     const updatedWorkoutDay = await this.workoutDayRepository.save(workoutDay);
-
     console.log('✅ Día de entrenamiento actualizado exitosamente en la BD:', updatedWorkoutDay);
-    return this.mapEntityToInterface(updatedWorkoutDay);
+
+    return updatedWorkoutDay;
   }
 
   /**
    * 🗑️ Eliminar un día de entrenamiento (eliminación lógica) en la BD
-   * @param {number} id - ID del día de entrenamiento a eliminar
-   * @returns {Promise<WorkoutDay>} Día de entrenamiento eliminado
+   *
+   * Realiza eliminación lógica cambiando isActive a false.
+   * No elimina físicamente el registro (soft delete).
+   * Permite recuperar el entrenamiento más tarde si es necesario.
+   *
+   * @param {number} id - ID del entrenamiento a eliminar
+   * @returns {Promise<WorkoutDayEntity>} El entrenamiento marcado como eliminado
    * @throws {BadRequestException} Si el ID no es válido
-   * @throws {NotFoundException} Si el día de entrenamiento no existe
-   * @throws {ConflictException} Si el día de entrenamiento ya estaba eliminado
+   * @throws {NotFoundException} Si el entrenamiento no existe
+   * @throws {ConflictException} Si el entrenamiento ya estaba eliminado
+   *
+   * @example
+   * const entrenamientoEliminado = await workoutDaysService.remove(1);
+   * console.log(entrenamientoEliminado.isActive); // false
+   *
+   * // Para reactivar:
+   * await workoutDaysService.update(1, { isActive: true });
    */
-  async remove(id: number): Promise<WorkoutDay> {
+  async remove(id: number): Promise<WorkoutDayEntity> {
     console.log(`🗑️ Eliminando día de entrenamiento ID ${id} en la BD`);
 
-    // Validar ID
+    // Validar que el ID sea válido
     if (isNaN(id)) {
       throw new BadRequestException('ID debe ser un número válido');
     }
@@ -335,18 +353,23 @@ export class WorkoutDaysService {
       throw new ConflictException(`Día de entrenamiento con ID ${id} ya estaba eliminado`);
     }
 
-    // Eliminación lógica
+    // Eliminación lógica: cambiar isActive a false
     workoutDay.isActive = false;
     const deletedWorkoutDay = await this.workoutDayRepository.save(workoutDay);
 
     console.log('✅ Día de entrenamiento eliminado exitosamente en la BD:', deletedWorkoutDay);
-    return this.mapEntityToInterface(deletedWorkoutDay);
+    return deletedWorkoutDay;
   }
 
   /**
-   * 👤 Validar que un usuario existe y está activo
+   * 👤 Método privado para validar que un usuario existe y está activo
+   *
+   * Verifica en la BD que el usuario exista y tenga isActive = true.
+   * Se usa antes de crear o modificar entrenamientos.
+   *
    * @param {number} userId - ID del usuario a validar
    * @throws {NotFoundException} Si el usuario no existe o no está activo
+   * @private
    */
   private async validateUserExists(userId: number): Promise<void> {
     const user = await this.userRepository.findOne({
@@ -359,40 +382,22 @@ export class WorkoutDaysService {
   }
 
   /**
-   * 📅 Obtener el nombre del día de la semana
-   * @param {number} dayNumber - Número del día (1-7)
-   * @returns {string} Nombre del día
+   * 📅 Método privado para obtener el nombre del día de la semana
+   *
+   * Convierte el número de día (1-7) a su nombre en español.
+   * Útil para mensajes de error y logs legibles.
+   *
+   * @param {number} dayNumber - Número del día (1=Lunes, 7=Domingo)
+   * @returns {string} Nombre del día en español
+   * @private
+   *
+   * @example
+   * this.getDayName(1); // 'Lunes'
+   * this.getDayName(7); // 'Domingo'
+   * this.getDayName(8); // 'Día inválido'
    */
   private getDayName(dayNumber: number): string {
     const days = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
     return days[dayNumber] || 'Día inválido';
-  }
-
-  /**
-   * 🔄 Convertir WorkoutDayEntity a WorkoutDay interface
-   * @param {WorkoutDayEntity} entity - Entity de la BD
-   * @returns {WorkoutDay} Interface para el controlador
-   */
-  private mapEntityToInterface(entity: WorkoutDayEntity): WorkoutDay {
-    return {
-      id: entity.id,
-      name: entity.name,
-      description: entity.description,
-      dayOfWeek: entity.dayOfWeek,
-      durationMinutes: entity.durationMinutes,
-      intensityLevel: entity.intensityLevel,
-      workoutType: entity.workoutType,
-      isActive: entity.isActive,
-      userId: entity.userId,
-    };
-  }
-
-  /**
-   * 🔄 Convertir array de WorkoutDayEntity a array de WorkoutDay interface
-   * @param {WorkoutDayEntity[]} entities - Array de entities de la BD
-   * @returns {WorkoutDay[]} Array de interfaces para el controlador
-   */
-  private mapEntitiesToInterfaces(entities: WorkoutDayEntity[]): WorkoutDay[] {
-    return entities.map((entity) => this.mapEntityToInterface(entity));
   }
 }
