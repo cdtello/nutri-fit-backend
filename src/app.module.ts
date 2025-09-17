@@ -4,7 +4,9 @@ import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UsersModule } from './users/users.module';
+import { WorkoutDaysModule } from './workout-days/workout-days.module';
 import { UserEntity } from './users/entities/user.entity';
+import { WorkoutDayEntity } from './workout-days/entities/workout-day.entity';
 
 @Module({
   imports: [
@@ -22,7 +24,7 @@ import { UserEntity } from './users/entities/user.entity';
         const baseConfig = {
           synchronize: configService.get('DB_SYNCHRONIZE') === 'true',
           logging: configService.get('DB_LOGGING') === 'true',
-          entities: [UserEntity],
+          entities: [UserEntity, WorkoutDayEntity],
         };
 
         // Para SQLite solo necesitamos el archivo de base de datos
@@ -49,6 +51,7 @@ import { UserEntity } from './users/entities/user.entity';
     }),
 
     UsersModule, // 📦 Importar el módulo completo de usuarios
+    WorkoutDaysModule, // 🏋️ Importar el módulo completo de días de entrenamiento
   ],
   controllers: [AppController],
   providers: [AppService],

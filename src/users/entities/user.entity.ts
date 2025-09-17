@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
+import { WorkoutDayEntity } from '../../workout-days/entities/workout-day.entity';
 
 /**
  * 🏛️ Entity de Usuario - Compatible con TypeORM
@@ -56,6 +57,13 @@ export class UserEntity {
    */
   @UpdateDateColumn()
   updatedAt: Date;
+
+  /**
+   * 🏋️ Relación con los días de entrenamiento
+   * Un usuario puede tener varios días de entrenamiento (One-to-Many)
+   */
+  @OneToMany(() => WorkoutDayEntity, (workoutDay) => workoutDay.user)
+  workoutDays: WorkoutDayEntity[];
 
   /**
    * 🏗️ Constructor de la entity

@@ -54,7 +54,7 @@ export class UsersService {
 
     const users = await this.userRepository.find({
       where: { isActive: true },
-      order: { createdAt: 'DESC' }, // Más recientes primero
+      order: { id: 'ASC' }, // Más recientes primero
     });
 
     return this.mapEntitiesToInterfaces(users);
