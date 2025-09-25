@@ -1,5 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
 import { WorkoutDayEntity } from '../../workout-days/entities/workout-day.entity';
+import { UserRole, UserStatus } from '../interfaces/user.interface';
+import type { UserStats } from '../interfaces/user.interface';
 
 /**
  * 🏛️ Entity de Usuario - Compatible con TypeORM
@@ -30,19 +32,60 @@ export class UserEntity {
   email: string;
 
   /**
-   * 🎂 Edad del usuario
-   * Campo obligatorio, rango válido: 0-150
+   * 🎭 Rol del usuario en el sistema
+   * Define los permisos y funcionalidades disponibles
    */
-  @Column({ type: 'int' })
-  age: number;
+  @Column({ type: 'varchar', enum: UserRole, default: UserRole.USER })
+  role: UserRole;
 
   /**
-   * ✅ Estado activo del usuario
-   * true = activo, false = inactivo/eliminado
-   * Por defecto: true
+   * 🖼️ URL de la foto de perfil (opcional)
+   * Puede almacenar URL de imagen local o externa
    */
-  @Column({ type: 'boolean', default: true })
-  isActive: boolean;
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  avatar?: string;
+
+  /**
+   * 📊 Estado del usuario
+   * Define el estado actual del usuario en el sistema
+   */
+  @Column({ type: 'varchar', enum: UserStatus, default: UserStatus.ACTIVE })
+  status: UserStatus;
+
+  /**
+   * 📝 Biografía/descripción del usuario (opcional)
+   * Información adicional sobre el usuario
+   */
+  @Column({ type: 'text', nullable: true })
+  bio?: string;
+
+  /**
+   * 📞 Número de teléfono (opcional)
+   * Contacto telefónico del usuario
+   */
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  phone?: string;
+
+  /**
+   * 📍 Ubicación del usuario (opcional)
+   * Ciudad, país o dirección del usuario
+   */
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  location?: string;
+
+  /**
+   * 🎯 Especialidades del usuario (opcional)
+   * Lista de áreas de especialización (para entrenadores/nutricionistas)
+   */
+  @Column({ type: 'simple-json', nullable: true })
+  specialties?: string[];
+
+  /**
+   * 📈 Estadísticas del usuario (opcional)
+   * Métricas de actividad y progreso del usuario
+   */
+  @Column({ type: 'simple-json', nullable: true })
+  stats?: UserStats;
 
   /**
    * 📅 Fecha de creación del registro
@@ -73,7 +116,8 @@ export class UserEntity {
     Object.assign(this, partial);
 
     // Valores por defecto si no se proporcionan
-    this.isActive = this.isActive ?? true;
+    this.role = this.role ?? UserRole.USER;
+    this.status = this.status ?? UserStatus.ACTIVE;
     this.createdAt = this.createdAt ?? new Date();
     this.updatedAt = this.updatedAt ?? new Date();
   }
@@ -87,15 +131,11 @@ export class UserEntity {
   }
 
   /**
-   * 📊 Método para calcular el grupo etario
-   * Lógica de negocio que puede ser útil en la entity
+   * 📅 Método para obtener la fecha de unión como string ISO
+   * Convierte createdAt a formato ISO string para el frontend
    */
-  getAgeGroup(): string {
-    if (this.age < 18) return 'Menor de edad';
-    if (this.age < 30) return 'Joven adulto';
-    if (this.age < 50) return 'Adulto';
-    if (this.age < 65) return 'Adulto mayor';
-    return 'Tercera edad';
+  getJoinedDate(): string {
+    return this.createdAt.toISOString();
   }
 
   /**
@@ -114,7 +154,7 @@ export class UserEntity {
    * ✅ Método para activar el usuario
    */
   activate(): void {
-    this.isActive = true;
+    this.status = UserStatus.ACTIVE;
     this.updateTimestamp();
   }
 
@@ -122,7 +162,23 @@ export class UserEntity {
    * ❌ Método para desactivar el usuario (eliminación lógica)
    */
   deactivate(): void {
-    this.isActive = false;
+    this.status = UserStatus.INACTIVE;
+    this.updateTimestamp();
+  }
+
+  /**
+   * ⛔ Método para suspender el usuario
+   */
+  suspend(): void {
+    this.status = UserStatus.SUSPENDED;
+    this.updateTimestamp();
+  }
+
+  /**
+   * 🚫 Método para banear el usuario
+   */
+  ban(): void {
+    this.status = UserStatus.BANNED;
     this.updateTimestamp();
   }
 
@@ -130,6 +186,27 @@ export class UserEntity {
    * 🔍 Método para verificar si el usuario está activo
    */
   isUserActive(): boolean {
-    return this.isActive;
+    return this.status === UserStatus.ACTIVE;
+  }
+
+  /**
+   * 🎭 Método para verificar si el usuario es administrador
+   */
+  isAdmin(): boolean {
+    return this.role === UserRole.ADMIN;
+  }
+
+  /**
+   * 🏋️ Método para verificar si el usuario es entrenador
+   */
+  isTrainer(): boolean {
+    return this.role === UserRole.TRAINER;
+  }
+
+  /**
+   * 🥗 Método para verificar si el usuario es nutricionista
+   */
+  isNutritionist(): boolean {
+    return this.role === UserRole.NUTRITIONIST;
   }
 }

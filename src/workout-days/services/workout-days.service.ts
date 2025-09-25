@@ -4,6 +4,7 @@ import { Repository, Like } from 'typeorm';
 import { WorkoutDayEntity } from '../entities/workout-day.entity';
 import { CreateWorkoutDayDto, UpdateWorkoutDayDto, SearchWorkoutDayDto } from '../dto/workout-day.dto';
 import { UserEntity } from '../../users/entities/user.entity';
+import { UserStatus } from '../../users/interfaces/user.interface';
 
 /**
  * 🏋️ Servicio de días de entrenamiento - Lógica de negocio con Base de Datos
@@ -373,7 +374,7 @@ export class WorkoutDaysService {
    */
   private async validateUserExists(userId: number): Promise<void> {
     const user = await this.userRepository.findOne({
-      where: { id: userId, isActive: true },
+      where: { id: userId, status: UserStatus.ACTIVE },
     });
 
     if (!user) {

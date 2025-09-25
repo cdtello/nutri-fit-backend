@@ -1,5 +1,7 @@
-import { IsString, IsEmail, IsNumber, Min, Max, IsNotEmpty, IsOptional, IsBoolean } from 'class-validator';
+import { IsString, IsEmail, IsNumber, Min, Max, IsNotEmpty, IsOptional, IsBoolean, IsEnum, IsArray, IsUrl, ValidateNested } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
+import { UserRole, UserStatus } from '../interfaces/user.interface';
+import type { UserStats } from '../interfaces/user.interface';
 
 /**
  * 📝 DTO para crear un nuevo usuario con validaciones automáticas
@@ -14,10 +16,30 @@ export class CreateUserDto {
   @IsNotEmpty({ message: 'El email es obligatorio' })
   email: string; // 📧 Email (obligatorio, formato válido)
 
-  @IsNumber({}, { message: 'La edad debe ser un número' })
-  @Min(0, { message: 'La edad debe ser mayor o igual a 0' })
-  @Max(150, { message: 'La edad debe ser menor o igual a 150' })
-  age: number; // 🎂 Edad (obligatorio, 0-150)
+  @IsOptional()
+  @IsEnum(UserRole, { message: 'El rol debe ser un valor válido' })
+  role?: UserRole; // 🎭 Rol del usuario (opcional, por defecto: USER)
+
+  @IsOptional()
+  @IsUrl({}, { message: 'El avatar debe ser una URL válida' })
+  avatar?: string; // 🖼️ URL del avatar (opcional)
+
+  @IsOptional()
+  @IsString({ message: 'La biografía debe ser una cadena de texto' })
+  bio?: string; // 📝 Biografía (opcional)
+
+  @IsOptional()
+  @IsString({ message: 'El teléfono debe ser una cadena de texto' })
+  phone?: string; // 📞 Teléfono (opcional)
+
+  @IsOptional()
+  @IsString({ message: 'La ubicación debe ser una cadena de texto' })
+  location?: string; // 📍 Ubicación (opcional)
+
+  @IsOptional()
+  @IsArray({ message: 'Las especialidades deben ser un array' })
+  @IsString({ each: true, message: 'Cada especialidad debe ser una cadena de texto' })
+  specialties?: string[]; // 🎯 Especialidades (opcional)
 }
 
 /**
@@ -34,14 +56,33 @@ export class UpdateUserDto {
   email?: string; // 📧 Email (opcional, si se envía debe ser email válido)
 
   @IsOptional()
-  @IsNumber({}, { message: 'La edad debe ser un número' })
-  @Min(0, { message: 'La edad debe ser mayor o igual a 0' })
-  @Max(150, { message: 'La edad debe ser menor o igual a 150' })
-  age?: number; // 🎂 Edad (opcional, si se envía debe estar entre 0-150)
+  @IsEnum(UserRole, { message: 'El rol debe ser un valor válido' })
+  role?: UserRole; // 🎭 Rol del usuario (opcional)
 
   @IsOptional()
-  @IsBoolean({ message: 'isActive debe ser true o false' })
-  isActive?: boolean; // ✅ Estado activo (opcional, debe ser booleano)
+  @IsUrl({}, { message: 'El avatar debe ser una URL válida' })
+  avatar?: string; // 🖼️ URL del avatar (opcional)
+
+  @IsOptional()
+  @IsEnum(UserStatus, { message: 'El estado debe ser un valor válido' })
+  status?: UserStatus; // 📊 Estado del usuario (opcional)
+
+  @IsOptional()
+  @IsString({ message: 'La biografía debe ser una cadena de texto' })
+  bio?: string; // 📝 Biografía (opcional)
+
+  @IsOptional()
+  @IsString({ message: 'El teléfono debe ser una cadena de texto' })
+  phone?: string; // 📞 Teléfono (opcional)
+
+  @IsOptional()
+  @IsString({ message: 'La ubicación debe ser una cadena de texto' })
+  location?: string; // 📍 Ubicación (opcional)
+
+  @IsOptional()
+  @IsArray({ message: 'Las especialidades deben ser un array' })
+  @IsString({ each: true, message: 'Cada especialidad debe ser una cadena de texto' })
+  specialties?: string[]; // 🎯 Especialidades (opcional)
 }
 
 /**
@@ -58,37 +99,34 @@ export class SearchUserDto {
   email?: string; // 📧 Email (opcional, si se envía debe ser email válido)
 
   @IsOptional()
-  @Type(() => Number)
-  @IsNumber({}, { message: 'La edad debe ser un número' })
-  @Min(0, { message: 'La edad debe ser mayor o igual a 0' })
-  @Max(150, { message: 'La edad debe ser menor o igual a 150' })
-  age?: number; // 🎂 Edad (opcional, se convierte automáticamente)
+  @IsEnum(UserRole, { message: 'El rol debe ser un valor válido' })
+  role?: UserRole; // 🎭 Rol del usuario (opcional)
 
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
-  @IsBoolean({ message: 'isActive debe ser true o false' })
-  isActive?: boolean; // ✅ Estado activo (opcional, se convierte automáticamente)
+  @IsEnum(UserStatus, { message: 'El estado debe ser un valor válido' })
+  status?: UserStatus; // 📊 Estado del usuario (opcional)
+
+  @IsOptional()
+  @IsString({ message: 'La ubicación debe ser una cadena de texto' })
+  location?: string; // 📍 Ubicación (opcional)
 }
 
-// /**
-//  * 📤 DTO de respuesta para usuarios - COMENTADO POR AHORA
-//  * Define exactamente qué datos devolvemos al cliente
-//  * (Ocultamos información sensible y agregamos campos calculados)
-//  */
-// export class UserResponseDto {
-//   id: number; // 🆔 ID público
-//   name: string; // 📛 Nombre público
-//   email: string; // 📧 Email público
-//   age: number; // 🎂 Edad pública
-//   isActive: boolean; // ✅ Estado público
-
-//   // 🧮 Campos calculados (no están en la interfaz original)
-//   ageGroup: string; // Grupo etario calculado
-//   displayName: string; // Nombre para mostrar
-
-//   // 🚫 Campos que NO devolvemos:
-//   // - password (si lo tuviéramos)
-//   // - internalId (si lo tuviéramos)
-//   // - createdAt (si lo tuviéramos)
-//   // - lastLoginAt (información privada)
-// }
+/**
+ * 📤 DTO de respuesta para usuarios
+ * Define exactamente qué datos devolvemos al cliente
+ * Coincide con la interfaz esperada por el frontend
+ */
+export class UserResponseDto {
+  id: number; // 🆔 ID único del usuario
+  name: string; // 📛 Nombre completo
+  email: string; // 📧 Email
+  role: UserRole; // 🎭 Rol del usuario
+  avatar?: string; // 🖼️ URL de la foto de perfil (opcional)
+  status: UserStatus; // 📊 Estado del usuario
+  joinedDate: string; // 📅 Cuándo se unió al equipo (ISO string)
+  bio?: string; // 📝 Biografía/descripción (opcional)
+  phone?: string; // 📞 Teléfono (opcional)
+  location?: string; // 📍 Ubicación (opcional)
+  specialties?: string[]; // 🎯 Lista de especialidades (opcional)
+  stats?: UserStats; // 📈 Estadísticas del usuario (opcional)
+}
