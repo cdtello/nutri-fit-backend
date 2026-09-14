@@ -42,6 +42,57 @@ DB_LOGGING=false
 
 Al iniciar, la aplicación valida `PORT`, `DB_TYPE`, `DB_SYNCHRONIZE` y `DB_LOGGING`. Si usa PostgreSQL, también exige host, puerto, usuario, contraseña y base de datos para evitar que el servidor arranque con una configuración incompleta.
 
+## Generadores de NestJS (Nest CLI)
+
+Nest CLI permite crear la estructura base desde la terminal. Ejecute los comandos desde la raíz del proyecto (`nutrifit-backend`). Puede usar `nest generate` o su forma corta `nest g`.
+
+```bash
+# Crear elementos por separado
+nest g module products
+nest g controller products
+nest g service products
+
+# Crear una clase, middleware, guardia, interceptor, filtro o pipe
+nest g class common/helpers/slug
+nest g middleware common/logger
+nest g guard common/auth
+nest g interceptor common/response
+nest g filter common/http-exception
+nest g pipe common/parse-id
+```
+
+El comando para crear un módulo registra el módulo nuevo automáticamente en el módulo principal cuando Nest puede encontrarlo. También se pueden generar los elementos dentro de una carpeta o módulo existente:
+
+```bash
+nest g controller products/controllers/products
+nest g service products/services/products
+```
+
+### Generar un CRUD completo
+
+Para empezar un recurso REST con el esqueleto de CRUD, el comando más útil es `resource`:
+
+```bash
+nest g resource products
+```
+
+En las preguntas interactivas seleccione **REST API** y **Yes** para generar los endpoints CRUD. Nest creará, entre otros:
+
+- `products.module.ts`
+- `products.controller.ts`
+- `products.service.ts`
+- `dto/create-product.dto.ts`
+- `dto/update-product.dto.ts`
+- `entities/product.entity.ts`
+
+También puede ejecutar el comando sin preguntas:
+
+```bash
+nest g resource products --type rest --crud --no-spec
+```
+
+El módulo organiza y registra las piezas del recurso; `nest g resource` es el que combina módulo, controlador, servicio, DTOs y métodos CRUD iniciales. Después se completa la entidad, las validaciones, la persistencia con TypeORM y la lógica real en el servicio.
+
 ## Endpoints de usuarios
 
 | Método | Ruta | Descripción |
