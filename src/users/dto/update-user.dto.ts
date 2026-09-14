@@ -30,6 +30,6 @@ export class UpdateUserDto {
 
   @IsOptional()
   @IsString()
-  @Matches(/^\+?[0-9]{7,15}$/)
+  @Matches(/^\+?[0-9]{7,15}$/) // +? permite el prefijo internacional; [0-9]{7,15} exige entre 7 y 15 dígitos.
   phone?: string;
 }

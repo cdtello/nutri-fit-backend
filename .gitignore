@@ -11,4 +11,5 @@
 .vscode
 
 *.log
+*.tsbuildinfo
 npm-debug.log*

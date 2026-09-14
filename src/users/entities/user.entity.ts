@@ -3,20 +3,20 @@ import { Column, Entity, PrimaryColumn } from 'typeorm';
 @Entity('users')
 export class User {
   @PrimaryColumn({ length: 20 })
-  id: string;
+  id!: string;
 
   @Column({ length: 100 })
-  name: string;
+  name!: string;
 
   @Column({ unique: true, length: 254 })
-  email: string;
+  email!: string;
 
   @Column({ type: 'integer' })
-  age: number;
+  age!: number;
 
   @Column({ length: 30 })
-  phone: string;
+  phone!: string;
 
   @Column({ default: true })
-  isActive: boolean;
+  isActive!: boolean;
 }
