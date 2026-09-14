@@ -1,0 +1,14 @@
+/coverage
+/dist
+/node_modules
+/data
+
+.env
+.env.*.local
+
+.DS_Store
+.idea
+.vscode
+
+*.log
+npm-debug.log*
